@@ -55,6 +55,7 @@ pub enum Moment<T> {
 
 #[cfg(feature = "unstable")]
 impl<T: ConstDefault> Moment<T> {
+    #[inline]
     pub const fn immediate_const() -> Self {
         Moment::Relative(ConstDefault::DEFAULT)
     }
@@ -96,6 +97,7 @@ impl<T> From<Instant<T>> for Moment<T> {
 impl<T: Add<Output=T>> Add for Duration<T> {
     type Output = Self;
 
+    #[inline]
     fn add(self, v: Self) -> Self::Output {
         Self(self.0.add(v.0))
     }
@@ -104,16 +106,19 @@ impl<T: Add<Output=T>> Add for Duration<T> {
 impl<T: Sub<Output=T>> Sub for Duration<T> {
     type Output = Self;
 
+    #[inline]
     fn sub(self, v: Self) -> Self::Output {
         Self(self.0.sub(v.0))
     }
 }
 
 impl<T: Saturating> Saturating for Duration<T> {
+    #[inline]
     fn saturating_add(self, v: Self) -> Self {
         Self(self.0.saturating_add(v.0))
     }
 
+    #[inline]
     fn saturating_sub(self, v: Self) -> Self {
         Self(self.0.saturating_sub(v.0))
     }
@@ -122,6 +127,7 @@ impl<T: Saturating> Saturating for Duration<T> {
 impl<T: Add<Output=T>> Add<Duration<T>> for Instant<T> {
     type Output = Self;
 
+    #[inline]
     fn add(self, v: Duration<T>) -> Self::Output {
         Self(self.0.add(v.0))
     }
@@ -130,6 +136,7 @@ impl<T: Add<Output=T>> Add<Duration<T>> for Instant<T> {
 impl<T: Sub<Output=T>> Sub<Duration<T>> for Instant<T> {
     type Output = Self;
 
+    #[inline]
     fn sub(self, v: Duration<T>) -> Self::Output {
         Self(self.0.sub(v.0))
     }
@@ -138,6 +145,7 @@ impl<T: Sub<Output=T>> Sub<Duration<T>> for Instant<T> {
 impl<T: Sub<Output=T>> Sub for Instant<T> {
     type Output = Duration<T>;
 
+    #[inline]
     fn sub(self, v: Self) -> Self::Output {
         Duration(self.0.sub(v.0))
     }

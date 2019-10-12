@@ -224,12 +224,14 @@ macro_rules! impl_unit {
             impl<T: Add<Output=T>> Add for $id<T> {
                 type Output = Self;
 
+                #[inline]
                 fn add(self, v: Self) -> Self::Output {
                     Self(self.0.add(v.0))
                 }
             }
 
             impl<T: CheckedAdd> CheckedAdd for $id<T> {
+                #[inline]
                 fn checked_add(&self, v: &Self) -> Option<Self> {
                     self.0.checked_add(&v.0).map(Self)
                 }
@@ -238,40 +240,48 @@ macro_rules! impl_unit {
             impl<T: Sub<Output=T>> Sub for $id<T> {
                 type Output = Self;
 
+                #[inline]
                 fn sub(self, v: Self) -> Self::Output {
                     Self(self.0.sub(v.0))
                 }
             }
 
             impl<T: CheckedSub> CheckedSub for $id<T> {
+                #[inline]
                 fn checked_sub(&self, v: &Self) -> Option<Self> {
                     self.0.checked_sub(&v.0).map(Self)
                 }
             }
 
             impl<T: Saturating> Saturating for $id<T> {
+                #[inline]
                 fn saturating_add(self, v: Self) -> Self {
                     Self(self.0.saturating_add(v.0))
                 }
 
+                #[inline]
                 fn saturating_sub(self, v: Self) -> Self {
                     Self(self.0.saturating_sub(v.0))
                 }
             }
 
             impl<T: UncheckedOps> UncheckedOps for $id<T> {
+                #[inline]
                 unsafe fn unchecked_add(&self, val: Self) -> Self {
                     Self(self.0.unchecked_add(val.0))
                 }
 
+                #[inline]
                 unsafe fn unchecked_sub(&self, val: Self) -> Self {
                     Self(self.0.unchecked_sub(val.0))
                 }
 
+                #[inline]
                 unsafe fn unchecked_mul(&self, val: Self) -> Self {
                     Self(self.0.unchecked_mul(val.0))
                 }
 
+                #[inline]
                 unsafe fn unchecked_div(&self, val: Self) -> Self {
                     Self(self.0.unchecked_div(val.0))
                 }

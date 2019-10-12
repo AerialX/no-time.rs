@@ -1,0 +1,16 @@
+[package]
+name = "no-time"
+version = "0.1.0"
+edition = "2018"
+
+categories = ["no-std", "date-and-time", "embedded"]
+
+[dependencies]
+num-traits = { version = "^0.2.8", default-features = false } # TODO feature i128?
+typenum = { version = "^1.1.12", default-features = false }
+const-default = { version = "^0.1.0", git = "https://github.com/AerialX/const-default.rs" }
+static_assertions = { version = "^1.0.0" }
+# uom would be a good choice here if https://github.com/iliekturtles/uom/issues/55 and https://github.com/iliekturtles/uom/issues/97 are resolved :(
+
+[features]
+unstable = [ ]

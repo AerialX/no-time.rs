@@ -35,7 +35,7 @@ Sized + Clone + num_traits::CheckedAdd
     fn from_const<I: Unsigned>() -> Self;
 }
 
-pub trait Unit: Sized + ConstDefault {
+pub trait Unit: Sized + ConstDefault + CheckedAdd {
     type Repr: Repr;
     type Seconds: Ratio;
 
@@ -301,6 +301,8 @@ impl_unit! {
     Hours / ConstRatio<Prod<U60, U60>, U1>,
     Minutes / ConstRatio<U60, U1>,
     Seconds / ConstRatio<U1, U1>,
+    Deciseconds / ConstRatio<U1, U10>,
+    Debiseconds / ConstRatio<U1, U16>,
     Centiseconds / ConstRatio<U1, U100>,
     Cebiseconds / ConstRatio<U1, U128>,
     Milliseconds / ConstRatio<U1, U1000>,

@@ -303,6 +303,7 @@ impl_unit! {
     Seconds / ConstRatio<U1, U1>,
     Deciseconds / ConstRatio<U1, U10>,
     Debiseconds / ConstRatio<U1, U16>,
+    Cebiseconds_2 / ConstRatio<U1, U64>,
     Centiseconds / ConstRatio<U1, U100>,
     Cebiseconds / ConstRatio<U1, U128>,
     Milliseconds / ConstRatio<U1, U1000>,

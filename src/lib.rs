@@ -124,6 +124,18 @@ impl<T: Saturating> Saturating for Duration<T> {
     }
 }
 
+impl<T: Saturating> Instant<T> {
+    #[inline]
+    pub fn saturating_add(self, v: Duration<T>) -> Self {
+        Instant(self.0.saturating_add(v.0))
+    }
+
+    #[inline]
+    pub fn saturating_sub(self, v: Self) -> Duration<T> {
+        Duration(self.0.saturating_sub(v.0))
+    }
+}
+
 impl<T: Add<Output=T>> Add<Duration<T>> for Instant<T> {
     type Output = Self;
 

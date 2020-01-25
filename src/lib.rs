@@ -4,149 +4,229 @@
 use const_default::ConstDefault;
 use num_traits::{CheckedAdd, Saturating};
 use core::ops::{Add, Sub};
+use core::marker::PhantomData;
 
 mod unit;
 
 pub use unit::*;
 
-macro_rules! impl_wrapper {
-    ($id:ident) => {
-        #[derive(Copy, Clone, Default, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
-        pub struct $id<T>(T);
+pub trait Repr: Copy { }
 
-        impl<T: ConstDefault> ConstDefault for $id<T> {
-            const DEFAULT: Self = $id(T::DEFAULT);
-        }
-
-        impl<T> $id<T> {
-            #[inline]
-            pub const fn new(value: T) -> Self {
-                Self(value)
-            }
-
-            #[inline]
-            pub fn value(&self) -> &T {
-                &self.0
-            }
-
-            #[inline]
-            pub fn value_mut(&mut self) -> &mut T {
-                &mut self.0
-            }
-        }
-
-        impl<T: Unit> From<T> for $id<T> {
-            #[inline]
-            fn from(value: T) -> Self {
-                Self::new(value)
-            }
-        }
-    };
+#[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
+pub struct Duration<R, U> {
+    value: R,
+    _unit: PhantomData<U>,
 }
 
-impl_wrapper! { Duration }
-impl_wrapper! { Instant }
+impl<R: Copy, U> Copy for Duration<R, U> { }
+
+impl<R: Clone, U> Clone for Duration<R, U> {
+    fn clone(&self) -> Self {
+        Duration::from_value(self.value.clone())
+    }
+}
+
+impl<R: Default, U> Default for Duration<R, U> {
+    fn default() -> Self {
+        Duration::from_value(Default::default())
+    }
+}
+
+impl<R: ConstDefault, U> ConstDefault for Duration<R, U> {
+    const DEFAULT: Self = Self::from_value(R::DEFAULT);
+}
+
+impl<R: ConstDefault, U> ConstDefault for Instant<R, U> {
+    const DEFAULT: Self = Self::from_value(R::DEFAULT);
+}
+
+impl<R, U> Duration<R, U> {
+    #[inline]
+    pub const fn from_value(value: R) -> Self {
+        Self {
+            value,
+            _unit: PhantomData,
+        }
+    }
+
+    #[inline]
+    pub fn value(self) -> R {
+        self.value
+    }
+
+    #[inline]
+    pub const fn value_ref(&self) -> &R {
+        &self.value
+    }
+
+    #[inline]
+    pub fn value_mut(&mut self) -> &mut R {
+        &mut self.value
+    }
+}
+
+#[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
+pub struct Instant<R, U> {
+    duration: Duration<R, U>,
+}
+
+impl<R: Copy, U> Copy for Instant<R, U> { }
+
+impl<R: Clone, U> Clone for Instant<R, U> {
+    fn clone(&self) -> Self {
+        Instant::from(self.duration.clone())
+    }
+}
+
+impl<R: Default, U> Default for Instant<R, U> {
+    fn default() -> Self {
+        Instant::from(Duration::default())
+    }
+}
+
+impl<R, U> Instant<R, U> {
+    #[inline]
+    pub const fn from_value(value: R) -> Self {
+        Self {
+            duration: Duration::from_value(value),
+        }
+    }
+
+    #[inline]
+    pub fn value(self) -> R {
+        self.duration.value()
+    }
+
+    #[inline]
+    pub const fn value_ref(&self) -> &R {
+        self.duration.value_ref()
+    }
+
+    #[inline]
+    pub fn value_mut(&mut self) -> &mut R {
+        self.duration.value_mut()
+    }
+}
+
+/*impl<R: From<RD>, RD, U> From<Duration<RD, U>> for Duration<R, U> {
+    fn from(duration: Duration<RD, U>) -> Self {
+        Self::from_value(duration.value.into())
+    }
+}*/
+
+impl<R: From<RD>, RD, U> From<Duration<RD, U>> for Instant<R, U> {
+    #[inline]
+    fn from(duration: Duration<RD, U>) -> Self {
+        Self {
+            duration: Duration::from_value(duration.value.into()),
+        }
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
-pub enum Moment<T> {
-    Relative(Duration<T>),
-    Absolute(Instant<T>),
+pub enum Moment<R, U> {
+    Relative(Duration<R, U>),
+    Absolute(Instant<R, U>),
 }
 
 #[cfg(feature = "unstable")]
-impl<T: ConstDefault> Moment<T> {
+impl<R: ConstDefault, U> Moment<R, U> {
     #[inline]
     pub const fn immediate_const() -> Self {
         Moment::Relative(ConstDefault::DEFAULT)
     }
 }
 
-impl<T: Default> Moment<T> {
+impl<R: Default, U> Moment<R, U> {
     #[inline]
     pub fn immediate() -> Self {
         Moment::Relative(Default::default())
     }
 }
 
-impl<T: Unit + CheckedAdd + Default> Moment<T> {
+impl<R: CheckedAdd + Default, U> Moment<R, U> {
     #[inline]
-    pub fn to_absolute<F: FnOnce() -> Instant<T>>(self, now: F) -> Option<Instant<T>> where
-        T: Copy,
+    pub fn to_absolute<F: FnOnce() -> Instant<R, U>>(self, now: F) -> Option<Instant<R, U>> where
+        R: Copy,
     {
         match self {
             Moment::Absolute(instant) => Some(instant),
-            Moment::Relative(duration) => now().value().checked_add(duration.value()).map(Instant),
+            Moment::Relative(duration) => now().value().checked_add(duration.value_ref()).map(Instant::from_value),
         }
     }
 }
 
-impl<T> From<Duration<T>> for Moment<T> {
+impl<R, U> From<Duration<R, U>> for Moment<R, U> {
     #[inline]
-    fn from(v: Duration<T>) -> Self {
+    fn from(v: Duration<R, U>) -> Self {
         Self::Relative(v)
     }
 }
 
-impl<T> From<Instant<T>> for Moment<T> {
+impl<R, U> From<Instant<R, U>> for Moment<R, U> {
     #[inline]
-    fn from(v: Instant<T>) -> Self {
+    fn from(v: Instant<R, U>) -> Self {
         Self::Absolute(v)
     }
 }
 
-impl<T: Add<Output=T>> Add for Duration<T> {
+impl<R: Add<Output=R>, U> Add for Duration<R, U> {
     type Output = Self;
 
     #[inline]
     fn add(self, v: Self) -> Self::Output {
-        Self(self.0.add(v.0))
+        Self::from_value(self.value.add(v.value))
     }
 }
 
-impl<T: Sub<Output=T>> Sub for Duration<T> {
+impl<R: Sub<Output=R>, U> Sub for Duration<R, U> {
     type Output = Self;
 
     #[inline]
     fn sub(self, v: Self) -> Self::Output {
-        Self(self.0.sub(v.0))
+        Self::from_value(self.value.sub(v.value))
     }
 }
 
-impl<T: Saturating> Saturating for Duration<T> {
+impl<R: Saturating, U> Saturating for Duration<R, U> {
     #[inline]
     fn saturating_add(self, v: Self) -> Self {
-        Self(self.0.saturating_add(v.0))
+        Self::from_value(self.value.saturating_add(v.value))
     }
 
     #[inline]
     fn saturating_sub(self, v: Self) -> Self {
-        Self(self.0.saturating_sub(v.0))
+        Self::from_value(self.value.saturating_sub(v.value))
     }
 }
 
-impl<T: Add<Output=T>> Add<Duration<T>> for Instant<T> {
-    type Output = Self;
+impl<RHS, R, RD, U> Add<RHS> for Instant<R, U> where
+    Duration<R, U>: Add<RHS, Output=Duration<RD, U>>
+{
+    type Output = Instant<RD, U>;
 
     #[inline]
-    fn add(self, v: Duration<T>) -> Self::Output {
-        Self(self.0.add(v.0))
+    fn add(self, v: RHS) -> Self::Output {
+        Instant::from(self.duration.add(v))
     }
 }
 
-impl<T: Sub<Output=T>> Sub<Duration<T>> for Instant<T> {
-    type Output = Self;
+impl<RHS, R, RD, U> Sub<RHS> for Instant<R, U> where
+    Duration<R, U>: Sub<RHS, Output=Duration<RD, U>>
+{
+    type Output = Instant<RD, U>;
 
     #[inline]
-    fn sub(self, v: Duration<T>) -> Self::Output {
-        Self(self.0.sub(v.0))
+    fn sub(self, v: RHS) -> Self::Output {
+        Instant::from(self.duration.sub(v))
     }
 }
 
-impl<T: Sub<Output=T>> Sub for Instant<T> {
-    type Output = Duration<T>;
+impl<R: Sub<Output=R>, U> Sub for Instant<R, U> {
+    type Output = Duration<R, U>;
 
     #[inline]
     fn sub(self, v: Self) -> Self::Output {
-        Duration(self.0.sub(v.0))
+        Duration::from_value(self.duration.value.sub(v.duration.value))
     }
 }

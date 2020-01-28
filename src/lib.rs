@@ -3,15 +3,18 @@
 
 use const_default::ConstDefault;
 use num_traits::{CheckedAdd, Saturating};
-use core::ops::{Add, Sub};
+use unchecked_ops::{UncheckedDiv, UncheckedSub, UncheckedMul, UncheckedAdd, UncheckedRem};
+use typenum_fractional::{Fractional, ToPrimitive};
+use core::ops::{Add, Sub, Mul, Div, Rem};
 use core::marker::PhantomData;
+use core::convert::TryFrom;
 
-mod unit;
-
-pub use unit::*;
+pub mod unit;
+pub use unit::{Unit, UnitConversionTo, UnitConversionToValue, UnitConversionFrom, UnitConversionFromValue, units};
 
 pub trait Repr: Copy { }
 
+#[repr(transparent)]
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct Duration<R, U> {
     value: R,
@@ -65,6 +68,104 @@ impl<R, U> Duration<R, U> {
     }
 }
 
+impl<R, U: Unit> Duration<R, U> {
+    pub fn convert_from<SU, SR>(value: Duration<SR, SU>) -> Option<Self> where
+        SU: UnitConversionTo<U>,
+        <SU::Factor as Fractional>::Denom: ToPrimitive<R> + ToPrimitive<SR>,
+        <SU::Factor as Fractional>::Num: ToPrimitive<R>,
+        R: TryFrom<SR>,
+        SR: UncheckedDiv + UncheckedSub + UncheckedMul,
+        <SU::Factor as Fractional>::Num: typenum::IsGreaterOrEqual<<SU::Factor as Fractional>::Denom>,
+        R: num_traits::CheckedMul + num_traits::CheckedAdd + UncheckedSub + UncheckedMul + UncheckedDiv,
+    {
+        let value = value.value();
+        let denom = <<SU::Factor as Fractional>::Denom as ToPrimitive<SR>>::VALUE;
+        let denom_dest = <<SU::Factor as Fractional>::Denom as ToPrimitive<R>>::VALUE;
+        let num = <<SU::Factor as Fractional>::Num as ToPrimitive<R>>::VALUE;
+
+        unsafe {
+            let div = value.unchecked_div(denom); // denom is NonZero
+            let div_res = R::try_from(div).ok()?;
+            let res = div_res.checked_mul(&num);
+            if <<<SU::Factor as Fractional>::Num as typenum::IsGreaterOrEqual<<SU::Factor as Fractional>::Denom>>::Output as typenum::Bit>::BOOL {
+                // assuming an integer repr, this add+div only needs to occur if factor > 1/1, which can determined at compile-time
+                let rem = value.unchecked_sub(div.unchecked_mul(denom)); // value % denom
+                let rem_res = R::try_from(div).ok()?; // TODO: can this be unchecked or something..? We already assume the denom must fit in the dest repr...
+                res?.checked_add(&rem_res.checked_mul(&num)?.unchecked_div(denom_dest))
+            } else {
+                res
+            }.map(Self::from_value)
+        }
+    }
+
+    #[inline]
+    pub fn typenum<V: typenum::Unsigned, S>() -> Self where
+        /*S: UnitConversionToValue<U, V>,
+        S::Output: ToPrimitive<R>,*/
+        U: UnitConversionFromValue<S, V>,
+        U::Output: ToPrimitive<R>,
+    {
+        //Self::from_value(<S::Output as ToPrimitive<R>>::VALUE)
+        Self::from_value(<U::Output as ToPrimitive<R>>::VALUE)
+    }
+}
+
+#[cfg(feature = "unstable")]
+impl<U: Unit> Duration<u64, U> {
+    #[inline]
+    pub const fn const_value(&self) -> u64 {
+        self.value
+    }
+
+    #[inline]
+    pub const fn literal_value<S: UnitConversionTo<U>>(value: u64) -> u64 {
+        unit::lit::<S, U>(value)
+    }
+
+    #[inline]
+    pub const fn literal<S: UnitConversionTo<U>>(value: u64) -> Self {
+        Self::from_value(Self::literal_value::<S>(value))
+    }
+
+    /// Ugly hack around the inability to call generic const code.
+    ///
+    /// This should be optimized away easily enough at least?
+    #[inline]
+    pub fn trunc<R: Copy + 'static>(self) -> Duration<R, U> where
+        u64: num_traits::AsPrimitive<R>,
+    {
+        Duration::from_value(num_traits::AsPrimitive::as_(self.value))
+    }
+}
+
+#[doc(hidden)]
+pub mod __export {
+    pub use typenum::consts as typenum_consts;
+}
+
+#[macro_export]
+#[cfg(feature = "unstable")]
+macro_rules! duration_for {
+    ($num:ident $unit:path) => {
+        $crate::Duration::typenum::<$crate::__export::typenum_consts::$num, $unit>()
+    };
+    ($num:tt $unit:path: $dest:path) => {
+        {
+            const __NO_TIME_DURATION_INIT: u64 = $crate::Duration::<u64, $dest>::literal::<$unit>($num).const_value();
+            $crate::Duration::<_, $dest>::from_value(__NO_TIME_DURATION_INIT as _)
+        }
+    };
+}
+
+#[macro_export]
+#[cfg(not(feature = "unstable"))]
+macro_rules! duration_for {
+    ($num:ident $unit:path) => {
+        $crate::Duration::typenum::<$crate::__export::typenum_consts::$num, $unit>()
+    };
+}
+
+#[repr(transparent)]
 #[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct Instant<R, U> {
     duration: Duration<R, U>,
@@ -93,6 +194,18 @@ impl<R, U> Instant<R, U> {
     }
 
     #[inline]
+    pub fn from_origin(duration: Duration<R, U>) -> Self {
+        Self {
+            duration,
+        }
+    }
+
+    #[inline]
+    pub fn since_origin(self) -> Duration<R, U> {
+        self.duration
+    }
+
+    #[inline]
     pub fn value(self) -> R {
         self.duration.value()
     }
@@ -105,6 +218,37 @@ impl<R, U> Instant<R, U> {
     #[inline]
     pub fn value_mut(&mut self) -> &mut R {
         self.duration.value_mut()
+    }
+}
+
+impl<R, U: Unit> Instant<R, U> {
+    pub fn convert_from<SU, SR>(value: Instant<SR, SU>) -> Option<Self> where
+        SU: UnitConversionTo<U>,
+        <SU::Factor as Fractional>::Denom: ToPrimitive<R> + ToPrimitive<SR>,
+        <SU::Factor as Fractional>::Num: ToPrimitive<R>,
+        R: TryFrom<SR>,
+        SR: UncheckedDiv + UncheckedSub + UncheckedMul,
+        <SU::Factor as Fractional>::Num: typenum::IsGreaterOrEqual<<SU::Factor as Fractional>::Denom>,
+        R: num_traits::CheckedMul + num_traits::CheckedAdd + UncheckedSub + UncheckedMul + UncheckedDiv,
+    {
+        Duration::convert_from(value.since_origin()).map(Self::from_origin)
+    }
+}
+
+impl<R: Saturating, U> Instant<R, U> {
+    #[inline]
+    pub fn saturating_sub(self, rhs: Duration<R, U>) -> Self {
+        Self::from(self.duration.saturating_sub(rhs))
+    }
+
+    #[inline]
+    pub fn saturating_add(self, rhs: Duration<R, U>) -> Self {
+        Self::from(self.duration.saturating_add(rhs))
+    }
+
+    #[inline]
+    pub fn saturating_diff(self, rhs: Instant<R, U>) -> Duration<R, U> {
+        self.duration.saturating_sub(rhs.duration)
     }
 }
 
@@ -185,6 +329,54 @@ impl<R: Sub<Output=R>, U> Sub for Duration<R, U> {
     #[inline]
     fn sub(self, v: Self) -> Self::Output {
         Self::from_value(self.value.sub(v.value))
+    }
+}
+
+impl<R: Mul<Output=R>, U> Mul<R> for Duration<R, U> {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, v: R) -> Self::Output {
+        Self::from_value(self.value.mul(v))
+    }
+}
+
+impl<R: Div<Output=R>, U> Div for Duration<R, U> {
+    type Output = R;
+
+    #[inline]
+    fn div(self, v: Self) -> Self::Output {
+        self.value.div(v.value)
+    }
+}
+
+impl<R: Rem<Output=R>, U> Rem for Duration<R, U> {
+    type Output = Self;
+
+    #[inline]
+    fn rem(self, rhs: Self) -> Self::Output {
+        Self::from_value(self.value.rem(rhs.value))
+    }
+}
+
+impl<R: UncheckedAdd, U> UncheckedAdd for Duration<R, U> {
+    #[inline]
+    unsafe fn unchecked_add(self, rhs: Self) -> Self {
+        Self::from_value(self.value.unchecked_add(rhs.value))
+    }
+}
+
+impl<R: UncheckedSub, U> UncheckedSub for Duration<R, U> {
+    #[inline]
+    unsafe fn unchecked_sub(self, rhs: Self) -> Self {
+        Self::from_value(self.value.unchecked_sub(rhs.value))
+    }
+}
+
+impl<R: UncheckedRem, U> UncheckedRem for Duration<R, U> {
+    #[inline]
+    unsafe fn unchecked_rem(self, rhs: Self) -> Self {
+        Self::from_value(self.value.unchecked_rem(rhs.value))
     }
 }
 

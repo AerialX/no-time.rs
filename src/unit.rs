@@ -102,7 +102,8 @@ pub mod units {
         Centiseconds / Fraction<U1, U100>,
         Cebiseconds / Fraction<U1, U128>,
         Milliseconds / Fraction<U1, U1000>,
-        Mibiseconds / Fraction<U1, U1024>
+        Mibiseconds / Fraction<U1, U1024>,
+        Subseconds32 / Fraction<U1, U4294967296>
     }
 }
 

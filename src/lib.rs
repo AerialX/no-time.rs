@@ -90,7 +90,7 @@ impl<R, U: Unit> Duration<R, U> {
             if <<<SU::Factor as Fractional>::Num as typenum::IsGreaterOrEqual<<SU::Factor as Fractional>::Denom>>::Output as typenum::Bit>::BOOL {
                 // assuming an integer repr, this add+div only needs to occur if factor > 1/1, which can determined at compile-time
                 let rem = value.unchecked_sub(div.unchecked_mul(denom)); // value % denom
-                let rem_res = R::try_from(div).ok()?; // TODO: can this be unchecked or something..? We already assume the denom must fit in the dest repr...
+                let rem_res = R::try_from(rem).ok()?; // TODO: can this be unchecked or something..? We already assume the denom must fit in the dest repr...
                 res?.checked_add(&rem_res.checked_mul(&num)?.unchecked_div(denom_dest))
             } else {
                 res
@@ -421,4 +421,12 @@ impl<R: Sub<Output=R>, U> Sub for Instant<R, U> {
     fn sub(self, v: Self) -> Self::Output {
         Duration::from_value(self.duration.value.sub(v.duration.value))
     }
+}
+
+#[test]
+fn smoke_convert() {
+    let duration: Duration<u8, units::Seconds> = Duration::from_value(8);
+    let converted: Duration<u64, units::Subseconds32> = Duration::convert_from(duration).unwrap();
+
+    assert_eq!(converted.value(), duration.value() as u64 * 0x100000000)
 }

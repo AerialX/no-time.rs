@@ -8,7 +8,7 @@ categories = ["no-std", "date-and-time", "embedded"]
 [dependencies]
 num-traits = { version = "^0.2.8", default-features = false } # TODO feature i128?
 typenum = { version = "^1.12.0", default-features = false }
-const-default = { version = "^0.1.0", git = "https://github.com/AerialX/const-default.rs" }
+const-default = { version = "^0.3.0" }
 unchecked-ops = { version = "^0.1.0", git = "https://github.com/AerialX/unchecked-ops.rs" }
 static_assertions = { version = "^1.0.0" }
 typenum-fractional = { version = "^0.1.0", git = "https://github.com/AerialX/typenum-fractional" }

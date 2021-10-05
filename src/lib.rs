@@ -1,5 +1,5 @@
 #![no_std]
-#![cfg_attr(feature = "unstable", feature(core_intrinsics, const_fn))]
+#![cfg_attr(feature = "unstable", feature(core_intrinsics, const_fn_trait_bound))]
 
 use const_default::ConstDefault;
 use num_traits::{CheckedAdd, Saturating};
